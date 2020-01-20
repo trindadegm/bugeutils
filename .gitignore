@@ -1,0 +1,6 @@
+# Cargo stuff
+*.lock
+target/
+
+# Random things that someone may want to keep ignored
+*.ignore
