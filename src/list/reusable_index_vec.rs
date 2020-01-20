@@ -62,6 +62,8 @@ pub enum ReusableIndexNode<T> {
 /// A fast implementation of a map-like data structure that assigns IDs for every added element.
 ///
 /// ```
+///     use bugeutils::list::ReusableIndexVec;
+///
 ///     let mut entity_vec = ReusableIndexVec::new();
 ///
 ///     let string1_id = entity_vec.add("A string is added");
@@ -69,7 +71,7 @@ pub enum ReusableIndexNode<T> {
 ///
 ///     assert_ne!(string1_id, string2_id);
 ///
-///     if let Some(some_string) = entity_vec.get(string1_id) {
+///     if let Some(some_string) = entity_vec.get(&string1_id) {
 ///         println!("{}", some_string); // prints 'A string is added'
 ///     }
 /// ```
