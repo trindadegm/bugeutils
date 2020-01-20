@@ -84,11 +84,14 @@ const DEFAULT_INITIAL_CAPACITY: usize = 128;
 
 impl<T> ReusableIndexVec<T> {
     #[inline]
+    /// Creates a new empty `ReusableIndexVec`.
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_INITIAL_CAPACITY)
     }
 
     #[inline]
+    /// Creates a new empty `ReusableIndexVec` with a given initial capacity. This does not feeds
+    /// any elements on the struct, just pre-allocates them.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             vector: Vec::with_capacity(capacity),
@@ -96,6 +99,7 @@ impl<T> ReusableIndexVec<T> {
         }
     }
 
+    /// Adds a new element, returning a given ID associated with it.
     pub fn add(&mut self, node: T) -> ID {
         let new_cycle_stamp;
         let added_at_index;
@@ -133,53 +137,54 @@ impl<T> ReusableIndexVec<T> {
         ID(new_cycle_stamp, added_at_index)
     }
 
+    /// Removes the element associated with the given ID.
+    ///
+    /// # Errors
+    /// This function returns error of type `NotFound` if the element has never existed, or was removed.
     pub fn remove(&mut self, id: &ID) -> ListResult<()> {
         let (requested_cycle_stamp, index) = (id.0, id.1);
 
         if index < self.vector.len() {
             if let ReusableIndexNode::Exists(cycle_stamp, _) = self.vector[index] {
-                if requested_cycle_stamp != cycle_stamp {
-                    return Err(BugeError::new(BugeErrorType::Expired, &format!("node with id {}::{} has expired", requested_cycle_stamp, index)));
+                if requested_cycle_stamp == cycle_stamp {
+                    if let Some(last_removed) = self.last_removed {
+                        self.vector[index] = ReusableIndexNode::RemovedAndNext(cycle_stamp, last_removed);
+                    } else {
+                        self.vector[index] = ReusableIndexNode::Removed(cycle_stamp);
+                    }
+
+                    self.last_removed = Some(index);
+
+                    return Ok(())
                 }
-
-                if let Some(last_removed) = self.last_removed {
-                    self.vector[index] = ReusableIndexNode::RemovedAndNext(cycle_stamp, last_removed);
-                } else {
-                    self.vector[index] = ReusableIndexNode::Removed(cycle_stamp);
-                }
-
-                self.last_removed = Some(index);
-
-                Ok(())
-            } else {
-                Err(BugeError::new(BugeErrorType::NotFound, &format!("node with index {} does not exist. It cannot be removed", index)))
             }
-        } else {
-            Err(BugeError::new(BugeErrorType::NotFound, &format!("index {} is out of bounds. It cannot be removed", index)))
         }
+
+        Err(BugeError::new(BugeErrorType::NotFound, &format!("node with id {}::{} not found", requested_cycle_stamp, index)))
     }
 
-    pub fn remove_by_index(&mut self, index: Index) -> ListResult<()> {
-        if index < self.vector.len() {
-            if let ReusableIndexNode::Exists(cycle_stamp, _) = self.vector[index] {
-                if let Some(last_removed) = self.last_removed {
-                    self.vector[index] = ReusableIndexNode::RemovedAndNext(cycle_stamp, last_removed);
-                } else {
-                    self.vector[index] = ReusableIndexNode::Removed(cycle_stamp);
-                }
+    // Not used
+    //fn remove_by_index(&mut self, index: Index) -> ListResult<()> {
+    //    if index < self.vector.len() {
+    //        if let ReusableIndexNode::Exists(cycle_stamp, _) = self.vector[index] {
+    //            if let Some(last_removed) = self.last_removed {
+    //                self.vector[index] = ReusableIndexNode::RemovedAndNext(cycle_stamp, last_removed);
+    //            } else {
+    //                self.vector[index] = ReusableIndexNode::Removed(cycle_stamp);
+    //            }
 
-                self.last_removed = Some(index);
+    //            self.last_removed = Some(index);
 
-                Ok(())
-            } else {
-                Err(BugeError::new(BugeErrorType::NotFound, &format!("node with index {} does not exist. It cannot be removed", index)))
-            }
-        } else {
-            Err(BugeError::new(BugeErrorType::NotFound, &format!("index {} is out of bounds. It cannot be removed", index)))
-        }
-    }
+    //            Ok(())
+    //        } else {
+    //            Err(BugeError::new(BugeErrorType::NotFound, &format!("node with index {} does not exist. It cannot be removed", index)))
+    //        }
+    //    } else {
+    //        Err(BugeError::new(BugeErrorType::NotFound, &format!("index {} is out of bounds. It cannot be removed", index)))
+    //    }
+    //}
 
-    pub fn get_by_index(&self, index: Index) -> Option<(CycleStamp, &T)> {
+    fn get_by_index(&self, index: Index) -> Option<(CycleStamp, &T)> {
         if index < self.vector.len() {
             if let ReusableIndexNode::Exists(cycle_stamp, ref node) = self.vector[index] {
                 Some((cycle_stamp, node))
@@ -191,7 +196,7 @@ impl<T> ReusableIndexVec<T> {
         }
     }
 
-    pub fn get_by_index_mut(&mut self, index: Index) -> Option<(CycleStamp, &mut T)> {
+    fn get_by_index_mut(&mut self, index: Index) -> Option<(CycleStamp, &mut T)> {
         if index < self.vector.len() {
             if let ReusableIndexNode::Exists(cycle_stamp, ref mut node) = self.vector[index] {
                 Some((cycle_stamp, node))
@@ -203,6 +208,9 @@ impl<T> ReusableIndexVec<T> {
         }
     }
 
+    /// Returns a reference to the element associated with the given ID.
+    ///
+    /// Returns `None` if the element does not exist.
     pub fn get(&mut self, id: &ID) -> Option<&T> {
         let ID(cycle_stamp, index) = id;
         let (found_cycle_stamp, node) = self.get_by_index(*index)?;
@@ -215,6 +223,9 @@ impl<T> ReusableIndexVec<T> {
         }
     }
 
+    /// Returns a mutable reference to the element associated with the given ID.
+    ///
+    /// Returns `None` if the element does not exist.
     pub fn get_mut(&mut self, id: &ID) -> Option<&mut T> {
         let ID(cycle_stamp, index) = id;
         let (found_cycle_stamp, node) = self.get_by_index_mut(*index)?;
@@ -227,6 +238,7 @@ impl<T> ReusableIndexVec<T> {
         }
     }
 
+    /// Returns a slice to a list of nodes.
     #[inline]
     pub fn as_slice(&self) -> &[ReusableIndexNode<T>] {
         self.vector.as_slice()
@@ -245,6 +257,7 @@ mod tests {
         assert_eq!(mem::size_of::<ReusableIndexNode<u64>>(), 16);
         assert_eq!(mem::size_of::<ReusableIndexNode<u128>>(), 24);
     }
+
     #[test]
     fn test_creation() {
     }
