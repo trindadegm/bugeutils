@@ -21,7 +21,7 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
 ***************************************************************************** */
-use bugeutils::list::ReusableIndexVec;
+use bugeutils::list::{ReusableIndexVec, ID};
 
 use std::io;
 
@@ -45,28 +45,40 @@ pub fn main() {
                 mylist.add(add_what);
             },
             "REM" => {
-                let remove_which: usize = input[1].trim().parse().unwrap_or_else(|err| {
+                let cycle_stamp: u32 = input[1].trim().parse().unwrap_or_else(|err| {
                     println!("ERROR: {} ({})", err, input[1]);
-                    println!("INFO: Removing 0");
+                    println!("INFO: Removing with cycle stamp 0");
+
+                    0
+                });
+                let index: usize = input[2].trim().parse().unwrap_or_else(|err| {
+                    println!("ERROR: {} ({})", err, input[2]);
+                    println!("INFO: Removing with index 0");
 
                     0
                 });
 
-                if let Err(e) = mylist.remove_by_index(remove_which) {
+                if let Err(e) = mylist.remove(ID(cycle_stamp, index)) {
                     println!("ERROR: {}", e);
                 }
             },
             "GET" => {
-                let get_which: usize = input[1].trim().parse().unwrap_or_else(|err| {
+                let cycle_stamp: u32 = input[1].trim().parse().unwrap_or_else(|err| {
                     println!("ERROR: {} ({})", err, input[1]);
-                    println!("INFO: Getting 0");
+                    println!("INFO: Getting with cycle stamp 0");
+
+                    0
+                });
+                let index: usize = input[2].trim().parse().unwrap_or_else(|err| {
+                    println!("ERROR: {} ({})", err, input[2]);
+                    println!("INFO: Getting with index 0");
 
                     0
                 });
 
-                match mylist.get_by_index(get_which) {
+                match mylist.get(ID(cycle_stamp, index)) {
                     Some(val) => {
-                        println!("GOT={}", val.1);
+                        println!("GOT={}", val);
                     },
                     None => {
                         println!("EXPIRED");

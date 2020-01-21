@@ -53,6 +53,10 @@ impl Error {
             error_desc: String::from(error_desc),
         }
     }
+
+    pub fn error_type(&self) -> ErrorType {
+        self.error_type
+    }
 }
 
 impl fmt::Display for Error {

@@ -28,7 +28,7 @@ type ListResult<T> = Result<T, BugeError>;
 pub type Index = usize;
 pub type CycleStamp = u32;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ID(pub CycleStamp, pub Index);
 
 /// This enum elaborates which kind of nodes will exist inside of the vector.
@@ -71,7 +71,7 @@ pub enum ReusableIndexNode<T> {
 ///
 ///     assert_ne!(string1_id, string2_id);
 ///
-///     if let Some(some_string) = entity_vec.get(&string1_id) {
+///     if let Some(some_string) = entity_vec.get(string1_id) {
 ///         println!("{}", some_string); // prints 'A string is added'
 ///     }
 /// ```
@@ -141,7 +141,7 @@ impl<T> ReusableIndexVec<T> {
     ///
     /// # Errors
     /// This function returns error of type `NotFound` if the element has never existed, or was removed.
-    pub fn remove(&mut self, id: &ID) -> ListResult<()> {
+    pub fn remove(&mut self, id: ID) -> ListResult<()> {
         let (requested_cycle_stamp, index) = (id.0, id.1);
 
         if index < self.vector.len() {
@@ -211,12 +211,12 @@ impl<T> ReusableIndexVec<T> {
     /// Returns a reference to the element associated with the given ID.
     ///
     /// Returns `None` if the element does not exist.
-    pub fn get(&mut self, id: &ID) -> Option<&T> {
+    pub fn get(&mut self, id: ID) -> Option<&T> {
         let ID(cycle_stamp, index) = id;
-        let (found_cycle_stamp, node) = self.get_by_index(*index)?;
+        let (found_cycle_stamp, node) = self.get_by_index(index)?;
 
         // If it is REALLY the same
-        if *cycle_stamp == found_cycle_stamp {
+        if cycle_stamp == found_cycle_stamp {
             Some(node)
         } else {
             None
@@ -226,12 +226,12 @@ impl<T> ReusableIndexVec<T> {
     /// Returns a mutable reference to the element associated with the given ID.
     ///
     /// Returns `None` if the element does not exist.
-    pub fn get_mut(&mut self, id: &ID) -> Option<&mut T> {
+    pub fn get_mut(&mut self, id: ID) -> Option<&mut T> {
         let ID(cycle_stamp, index) = id;
-        let (found_cycle_stamp, node) = self.get_by_index_mut(*index)?;
+        let (found_cycle_stamp, node) = self.get_by_index_mut(index)?;
 
         // If it is REALLY the same
-        if *cycle_stamp == found_cycle_stamp {
+        if cycle_stamp == found_cycle_stamp {
             Some(node)
         } else {
             None
@@ -239,26 +239,180 @@ impl<T> ReusableIndexVec<T> {
     }
 
     /// Returns a slice to a list of nodes.
+    ///
+    /// This is a slice to a very raw slice. It contains every element, including the removed ones.
     #[inline]
     pub fn as_slice(&self) -> &[ReusableIndexNode<T>] {
         self.vector.as_slice()
     }
+
+    #[inline]
+    /// Returns an iterator on the list of existing elements.
+    pub fn iter<'vec>(&'vec self) -> ReusableIndexIterator<'vec, T> {
+        ReusableIndexIterator {
+            slice: self.vector.as_slice(),
+            length: self.vector.len(),
+            index: 0,
+        }
+    }
 } // End of impl ReusableIndexVec
+
+#[derive(Debug, Clone, Copy)]
+pub struct ReusableIndexIterator<'vec, T> {
+    slice: &'vec [ReusableIndexNode<T>],
+    length: usize,
+    index: usize,
+}
+
+impl<'vec, T> Iterator for ReusableIndexIterator<'vec, T> {
+    type Item = &'vec T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.index < self.length {
+                if let ReusableIndexNode::Exists(_, ref item) = self.slice[self.index] {
+                    self.index += 1;
+                    break Some(item);
+                }
+                self.index += 1;
+            } else {
+                break None;
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn size_test() {
         use std::mem;
 
-        use crate::list::ReusableIndexNode;
-
+        // This sizes are expected on a 64-bit machine.
         assert_eq!(mem::size_of::<ReusableIndexNode<u32>>(), 16);
         assert_eq!(mem::size_of::<ReusableIndexNode<u64>>(), 16);
         assert_eq!(mem::size_of::<ReusableIndexNode<u128>>(), 24);
     }
 
     #[test]
-    fn test_creation() {
+    fn creation_test() {
+        type Type = &'static str;
+
+        let mut vec_tad = ReusableIndexVec::<Type>::new();
+
+        assert_eq!(vec_tad.iter().collect::<Vec<&Type>>().len(), 0);
+
+        vec_tad.add("String A");
+        vec_tad.add("String B");
+        vec_tad.add("String C");
+        vec_tad.add("String D");
+        vec_tad.add("String E");
+
+        assert_eq!(vec_tad.iter().collect::<Vec<&Type>>().len(), 5);
+    }
+
+    #[test]
+    fn adding_elements() {
+        type Type = &'static str;
+
+        let mut vec_tad = ReusableIndexVec::<Type>::new();
+
+        let id_a = vec_tad.add("String A");
+        let id_b = vec_tad.add("String B");
+        let id_c = vec_tad.add("String C");
+        let id_d = vec_tad.add("String D");
+        let id_e = vec_tad.add("String E");
+
+        assert_eq!(vec_tad.iter().collect::<Vec<&Type>>().len(), 5);
+
+        assert_ne!(id_a, id_b);
+        assert_ne!(id_b, id_c);
+        assert_ne!(id_c, id_d);
+        assert_ne!(id_d, id_e);
+
+        assert_eq!(vec_tad.get(id_a), Some(&"String A"));
+        assert_eq!(vec_tad.get(id_b), Some(&"String B"));
+        assert_eq!(vec_tad.get(id_c), Some(&"String C"));
+        assert_eq!(vec_tad.get(id_d), Some(&"String D"));
+        assert_eq!(vec_tad.get(id_e), Some(&"String E"));
+    }
+
+    #[test]
+    fn removing_elements() {
+        type Type = &'static str;
+
+        let mut vec_tad = ReusableIndexVec::<Type>::new();
+
+        let id_a = vec_tad.add("String A");
+        let id_b = vec_tad.add("String B");
+        let id_c = vec_tad.add("String C");
+        let id_d = vec_tad.add("String D");
+        let id_e = vec_tad.add("String E");
+
+        vec_tad.remove(id_b).unwrap();
+        vec_tad.remove(id_d).unwrap();
+
+        let test_vec = vec_tad.iter().collect::<Vec<&Type>>();
+
+        assert_eq!(test_vec.len(), 3);
+
+        //assert_eq!(test_vec, vec![&"String A", &"String C", &"String E"]);
+
+        assert_eq!(vec_tad.get(id_b), None);
+        assert_eq!(vec_tad.get(id_d), None);
+
+        assert_eq!(vec_tad.get(id_a), Some(&"String A"));
+        assert_eq!(vec_tad.get(id_c), Some(&"String C"));
+        assert_eq!(vec_tad.get(id_e), Some(&"String E"));
+
+        // Now readding elements to see if it still works.
+
+        let id_f = vec_tad.add("String F");
+        let id_g = vec_tad.add("String G");
+        let id_h = vec_tad.add("String H");
+        let id_i = vec_tad.add("String I");
+        assert_eq!(vec_tad.get(id_f), Some(&"String F"));
+        assert_eq!(vec_tad.get(id_g), Some(&"String G"));
+        assert_eq!(vec_tad.get(id_h), Some(&"String H"));
+        assert_eq!(vec_tad.get(id_i), Some(&"String I"));
+
+        let test_vec = vec_tad.iter().collect::<Vec<&Type>>();
+
+        //assert_eq!(test_vec, vec![&"String A", &"String G", &"String C", &"String F", &"String E", &"String H", &"String I"]);
+
+        // Now removing 3, adding 2, removing 4.
+        vec_tad.remove(id_c).unwrap();
+        vec_tad.remove(id_g).unwrap();
+        vec_tad.remove(id_h).unwrap();
+
+        let id_j = vec_tad.add("String J");
+        let id_k = vec_tad.add("String K");
+
+        vec_tad.remove(id_i).unwrap();
+        vec_tad.remove(id_j).unwrap();
+        vec_tad.remove(id_a).unwrap();
+        vec_tad.remove(id_f).unwrap();
+
+        // Test all ids
+        assert_eq!(vec_tad.get(id_a), None);
+        assert_eq!(vec_tad.get(id_b), None);
+        assert_eq!(vec_tad.get(id_c), None);
+        assert_eq!(vec_tad.get(id_d), None);
+        assert_eq!(vec_tad.get(id_e), Some(&"String E"));
+        assert_eq!(vec_tad.get(id_f), None);
+        assert_eq!(vec_tad.get(id_g), None);
+        assert_eq!(vec_tad.get(id_h), None);
+        assert_eq!(vec_tad.get(id_i), None);
+        assert_eq!(vec_tad.get(id_j), None);
+        assert_eq!(vec_tad.get(id_k), Some(&"String K"));
+
+        let test_vec = vec_tad.iter().collect::<Vec<&Type>>();
+
+        //assert_eq!(test_vec, vec![&"String K", &"String E"]);
+
+        // Test error
+        assert!(vec_tad.remove(id_a).is_err());
     }
 }
