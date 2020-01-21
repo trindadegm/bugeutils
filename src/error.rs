@@ -42,6 +42,9 @@ pub enum ErrorType {
     /// Used when a resource expires.
     Expired,
 
+    /// Used when a certain configuration is incompatible
+    NotCompatible,
+
     /// Used when none of the other options fit. Something unexpected.
     UnexpectedError,
 }

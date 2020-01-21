@@ -23,13 +23,7 @@
 ***************************************************************************** */
 use crate::error::{Error as BugeError, ErrorType as BugeErrorType};
 
-type ListResult<T> = Result<T, BugeError>;
-
-pub type Index = usize;
-pub type CycleStamp = u32;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct ID(pub CycleStamp, pub Index);
+use crate::list::{ListResult, CycleStamp, Index, ID};
 
 /// This enum elaborates which kind of nodes will exist inside of the vector.
 /// 

@@ -21,13 +21,37 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
 ***************************************************************************** */
-pub mod list;
-pub mod black_box;
-pub mod error;
+use crate::error::{Error as BugeError, ErrorType as BugeErrorType};
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test() {
+use crate::list::{ListResult, CycleStamp, Index, ID};
+
+use std::collections::HashMap;
+use std::any::TypeId;
+
+pub struct ReusableIndexMultivec {
+    //bookkeeper: Vec<
+    vector_map: HashMap<TypeId, usize>,
+    top_size: usize,
+}
+
+impl ReusableIndexMultivec {
+    pub fn insert_row<K>(&mut self) -> ListResult<()>
+    where K: Sized + 'static {
+        let id = TypeId::of::<K>();
+        if self.vector_map.contains_key(&id) {
+            Err(BugeError::new(BugeErrorType::InvalidParameter, &format!("Key already exists")))
+        } else {
+            let vec_on_heap = Box::new(Vec::<K>::new());
+            self.vector_map.insert(id, 0);
+            Ok(())
+        }
     }
+
+    //pub fn get_row<K>(&mut self) -> Option<T>
+    //where K: ?Sized + 'static {
+    //    let id = TypeId::of::<K>();
+    //    if Some(addr_usize) = self.vector_map.get(id) {
+    //    } else {
+    //    }
+    //}
 }

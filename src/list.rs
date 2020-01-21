@@ -21,10 +21,15 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
 ***************************************************************************** */
-mod reusable_index_vec;
-pub use reusable_index_vec::*;
+pub type ListResult<T> = Result<T, crate::error::Error>;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-}
+pub type Index = usize;
+pub type CycleStamp = u32;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct ID(pub CycleStamp, pub Index);
+
+mod reusable_index_vec;
+pub use self::reusable_index_vec::*;
+mod reusable_index_multivec;
+pub use self::reusable_index_multivec::*;
